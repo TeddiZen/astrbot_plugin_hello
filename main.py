@@ -20,10 +20,11 @@ class MyPlugin(Star):
         logger.info(message_chain)
         yield event.plain_result(f"HelloWorld, {user_name}, 你发的 “{message_str}” 塞西莉亚收到啦!") # 发送一条纯文本消息
 
-    @filter.command("help|帮助")
+    @filter.command("help")
     async def help(self, event: AstrMessageEvent):
         """这是一个 help 指令"""
-        yield event.plain_result("这是一个 help 指令")
+        url = "https://teddizen-java-tesy.oss-cn-guangzhou.aliyuncs.com/help.png"
+        yield event.image_result(url)
 
     async def terminate(self):
         """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
