@@ -1,6 +1,7 @@
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
+import os
 
 @register("helloworld", "YourName", "一个简单的 Hello World 插件", "1.0.0")
 class MyPlugin(Star):
@@ -23,8 +24,8 @@ class MyPlugin(Star):
     @filter.command("help")
     async def help(self, event: AstrMessageEvent):
         """这是一个 help 指令"""
-        url = "https://teddizen-java-tesy.oss-cn-guangzhou.aliyuncs.com/help.png"
-        yield event.image_result(url)
+        logger.info("接收到help请求")
+        yield event.image_result("https://teddizen-java-tesy.oss-cn-guangzhou.aliyuncs.com/help.png")
 
     async def terminate(self):
         """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
