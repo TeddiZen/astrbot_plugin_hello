@@ -32,33 +32,6 @@ class MyPlugin(Star):
         logger.info("接收到help请求")
         yield event.image_result("https://teddizen-java-tesy.oss-cn-guangzhou.aliyuncs.com/help.png")
 
-    def _read_cgroup_file(self, path: str) -> int:
-        """读取Docker cgroup文件，获取容器真实资源"""
-        try:
-            with open(path, 'r') as f:
-                return int(f.read().strip())
-        except (FileNotFoundError, ValueError):
-            return 0
-
-    def get_docker_memory_info(self):
-        """获取Docker容器真实内存信息（通过cgroup）"""
-        # cgroup v1 路径
-        limit = self._read_cgroup_file('/sys/fs/cgroup/memory/memory.limit_in_bytes')
-        usage = self._read_cgroup_file('/sys/fs/cgroup/memory/memory.usage_in_bytes')
-        
-        # cgroup v2 兼容（新版Docker）
-        if not limit:
-            limit = self._read_cgroup_file('/sys/fs/cgroup/memory.max')
-        if not usage:
-            usage = self._read_cgroup_file('/sys/fs/cgroup/memory.current')
-        
-        #  fallback 到系统信息
-        if not limit:
-            mem = psutil.virtual_memory()
-            return mem.total, mem.used, mem.percent
-        
-        percent = (usage / limit) * 100 if limit > 0 else 0
-        return limit, usage, percent
 
     @filter.command("top")
     async def top(self, event: AstrMessageEvent):
@@ -96,46 +69,47 @@ class MyPlugin(Star):
         
         # ========== 专业版输出 ==========
         lines = [
-            "=" * 40,
-            "🔧 **AstrBot 系统资源监控面板**",
-            "=" * 40,
+            "=" * 25,
+            " **✨ 塞西莉亚bot ✨**"
+            "  **系统资源监控面板**",
+            "=" * 25,
             "",
             "📊 **【系统概览】**",
-            f"  ├─ 系统运行时间: {uptime_str}",
-            f"  ├─ 启动时间: {boot_time.strftime('%Y-%m-%d %H:%M:%S')}",
-            f"  └─ 进程总数: {len(processes)} 个",
+            f"  • 系统运行时间: {uptime_str}",
+            f"  • 启动时间: {boot_time.strftime('%Y-%m-%d %H:%M:%S')}",
+            f"  • 进程总数: {len(processes)} 个",
             "",
             "💻 **【CPU 状态】**",
-            f"  ├─ 当前使用率: {cpu_avg:.1f}%",
-            f"  ├─ CPU核心数: {len(cpu_percent)} 核",
-            f"  ├─ 1分钟负载: {load_avg[0]:.2f}",
-            f"  ├─ 5分钟负载: {load_avg[1]:.2f}",
-            f"  └─ 15分钟负载: {load_avg[2]:.2f}",
+            f"  • 当前使用率: {cpu_avg:.1f}%",
+            f"  • CPU核心数: {len(cpu_percent)} 核",
+            f"  • 1分钟负载: {load_avg[0]:.2f}",
+            f"  • 5分钟负载: {load_avg[1]:.2f}",
+            f"  • 15分钟负载: {load_avg[2]:.2f}",
             "",
             "🧠 **【内存状态】**",
-            f"  ├─ 物理内存: {mem.used/1024**3:.1f}GB / {mem.total/1024**3:.1f}GB ({mem.percent:.1f}%)",
-            f"  ├─ 可用内存: {mem.available/1024**3:.2f} GB",
-            f"  └─ 交换分区: {swap.used/1024**3:.1f}GB / {swap.total/1024**3:.1f}GB ({swap.percent:.1f}%)",
+            f"  • 物理内存: {mem.used/1024**3:.1f}GB / {mem.total/1024**3:.1f}GB ({mem.percent:.1f}%)",
+            f"  • 可用内存: {mem.available/1024**3:.2f} GB",
+            f"  • 交换分区: {swap.used/1024**3:.1f}GB / {swap.total/1024**3:.1f}GB ({swap.percent:.1f}%)",
             "",
             "💾 **【磁盘状态】**",
-            f"  └─ 根分区: {disk.used/1024**3:.1f}GB / {disk.total/1024**3:.1f}GB ({disk.percent:.1f}%)",
+            f"  • 根分区: {disk.used/1024**3:.1f}GB / {disk.total/1024**3:.1f}GB ({disk.percent:.1f}%)",
             "",
             "📋 **【进程排行榜】(按内存占用 Top 8)**",
-            "-" * 40,
-            f"  {'PID':<6} {'进程名':<15} {'用户':<8} {'内存(MB)':>8} {'占比':>6}",
-            "-" * 40,
+            "-" * 25,
+            f"  {'PID':<6} {'进程名':<15} {'用户':<8} "
+            f"  {'内存(MB)':>8} {'占比':>6}",
+            "-" * 25,
         ]
         
         for p in top_processes:
             lines.append(
                 f"  {p['pid']:<6} {p['name'][:14]:<15} {p['user'][:6]:<8} "
-                f"{p['memory_mb']:>8.1f} {p['memory_percent']:>5.1f}%"
+                f"  {p['memory_mb']:>8.1f} {p['memory_percent']:>5.1f}%"
             )
         
         lines.extend([
-            "-" * 40,
-            "",
-            "💡 提示: 加 --pid=host 可查看宿主机全部进程",
+            "-" * 25,
+            "📌 Made by 哲迪君"
         ])
         
         yield event.plain_result('\n'.join(lines))
