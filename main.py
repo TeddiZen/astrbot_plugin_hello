@@ -62,64 +62,83 @@ class MyPlugin(Star):
 
     @filter.command("top")
     async def top(self, event: AstrMessageEvent):
-        """🐳 Docker容器系统监控 - 类似Linux top命令"""
+        """🔧 系统资源监控命令"""
         logger.info("接收到top请求")
         
-        # ========== 获取基础系统信息 ==========
-        cpu_percent = psutil.cpu_percent(interval=0.5, percpu=True)
-        cpu_avg = sum(cpu_percent) / len(cpu_percent) if cpu_percent else 0
+        # ========== 获取系统信息 ==========
+        cpu_percent = psutil.cpu_percent(interval=0.3, percpu=True)
+        cpu_avg = sum(cpu_percent) / len(cpu_percent)
+        load_avg = psutil.getloadavg()  # 系统1/5/15分钟负载
+        mem = psutil.virtual_memory()
+        swap = psutil.swap_memory()
         disk = psutil.disk_usage('/')
         boot_time = datetime.datetime.fromtimestamp(psutil.boot_time())
         uptime = datetime.datetime.now() - boot_time
         uptime_str = str(uptime).split('.')[0]
         
-        # ========== Docker真实内存信息 ==========
-        mem_limit, mem_usage, mem_percent = self.get_docker_memory_info()
+        # ========== 获取所有进程 ==========
+        processes = []
+        for proc in psutil.process_iter(['pid', 'name', 'username', 'memory_percent', 'memory_info', 'cpu_percent']):
+            try:
+                processes.append({
+                    'pid': proc.info['pid'],
+                    'name': proc.info['name'],
+                    'user': proc.info['username'] or 'root',
+                    'memory_mb': proc.info['memory_info'].rss / 1024**2,
+                    'memory_percent': proc.info['memory_percent'],
+                    'cpu_percent': proc.info['cpu_percent']
+                })
+            except:
+                pass
         
-        # ========== Bot进程详情 ==========
-        bot_proc = psutil.Process()
-        bot_mem_rss = bot_proc.memory_info().rss  # 物理内存
-        bot_mem_vms = bot_proc.memory_info().vms  # 虚拟内存
-        bot_cpu = bot_proc.cpu_percent()
-        bot_threads = bot_proc.num_threads()
-        bot_fd = bot_proc.num_fds()  # 打开的文件描述符
+        processes.sort(key=lambda x: x['memory_mb'], reverse=True)
+        top_processes = processes[:8]
         
-        # ========== 格式化输出 ==========
-        result = textwrap.dedent(f"""\
-            🐳 **Docker容器监控 - top**
-            ━━━━━━━━━━━━━━━━━━━━
-            ⏱️ 运行时间: {uptime_str}
-            📅 启动时间: {boot_time.strftime('%Y-%m-%d %H:%M:%S')}
-
-            💻 **CPU 使用情况**
-              平均负载: {cpu_avg:.1f}%
-              CPU核心: {len(cpu_percent)} 核
-              核心占用: {' | '.join([f'{p:.1f}%' for p in cpu_percent[:4]])}
-
-            🧠 **内存使用 (Docker限额)**
-              容器限额: {mem_limit / 1024**3:.1f} GB
-              已用内存: {mem_usage / 1024**3:.2f} GB
-              使用率: {mem_percent:.1f}%
-              剩余可用: {(mem_limit - mem_usage) / 1024**3:.2f} GB
-
-            💾 **磁盘使用**
-              总计: {disk.total / 1024**3:.1f} GB
-              已用: {disk.used / 1024**3:.1f} GB ({disk.percent}%)
-              空闲: {disk.free / 1024**3:.1f} GB
-
-            🤖 **Bot 进程详情 (PID: {bot_proc.pid})**
-              CPU占用: {bot_cpu:.1f}%
-              物理内存: {bot_mem_rss / 1024**2:.1f} MB
-              虚拟内存: {bot_mem_vms / 1024**2:.1f} MB
-              内存占比: {(bot_mem_rss / mem_limit) * 100:.1f}%
-              线程数量: {bot_threads}
-              文件句柄: {bot_fd}
-
-            ━━━━━━━━━━━━━━━━━━━━
-            ✨ AstrBot System Monitor
-            """).strip()
+        # ========== 专业版输出 ==========
+        lines = [
+            "=" * 40,
+            "🔧 **AstrBot 系统资源监控面板**",
+            "=" * 40,
+            "",
+            "📊 **【系统概览】**",
+            f"  ├─ 系统运行时间: {uptime_str}",
+            f"  ├─ 启动时间: {boot_time.strftime('%Y-%m-%d %H:%M:%S')}",
+            f"  └─ 进程总数: {len(processes)} 个",
+            "",
+            "💻 **【CPU 状态】**",
+            f"  ├─ 当前使用率: {cpu_avg:.1f}%",
+            f"  ├─ CPU核心数: {len(cpu_percent)} 核",
+            f"  ├─ 1分钟负载: {load_avg[0]:.2f}",
+            f"  ├─ 5分钟负载: {load_avg[1]:.2f}",
+            f"  └─ 15分钟负载: {load_avg[2]:.2f}",
+            "",
+            "🧠 **【内存状态】**",
+            f"  ├─ 物理内存: {mem.used/1024**3:.1f}GB / {mem.total/1024**3:.1f}GB ({mem.percent:.1f}%)",
+            f"  ├─ 可用内存: {mem.available/1024**3:.2f} GB",
+            f"  └─ 交换分区: {swap.used/1024**3:.1f}GB / {swap.total/1024**3:.1f}GB ({swap.percent:.1f}%)",
+            "",
+            "💾 **【磁盘状态】**",
+            f"  └─ 根分区: {disk.used/1024**3:.1f}GB / {disk.total/1024**3:.1f}GB ({disk.percent:.1f}%)",
+            "",
+            "📋 **【进程排行榜】(按内存占用 Top 8)**",
+            "-" * 40,
+            f"  {'PID':<6} {'进程名':<15} {'用户':<8} {'内存(MB)':>8} {'占比':>6}",
+            "-" * 40,
+        ]
         
-        yield event.plain_result(result)
-    
+        for p in top_processes:
+            lines.append(
+                f"  {p['pid']:<6} {p['name'][:14]:<15} {p['user'][:6]:<8} "
+                f"{p['memory_mb']:>8.1f} {p['memory_percent']:>5.1f}%"
+            )
+        
+        lines.extend([
+            "-" * 40,
+            "",
+            "💡 提示: 加 --pid=host 可查看宿主机全部进程",
+        ])
+        
+        yield event.plain_result('\n'.join(lines))
+        
     async def terminate(self):
         """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
