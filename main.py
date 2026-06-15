@@ -1,7 +1,11 @@
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
+import textwrap
+import psutil
+import time
 import os
+import datetime
 
 @register("helloworld", "YourName", "一个简单的 Hello World 插件", "1.0.0")
 class MyPlugin(Star):
@@ -27,5 +31,63 @@ class MyPlugin(Star):
         logger.info("接收到help请求")
         yield event.image_result("https://teddizen-java-tesy.oss-cn-guangzhou.aliyuncs.com/help.png")
 
+    @filter.command("top")
+    async def top(self, event: AstrMessageEvent):
+        """系统资源监控 - 类似Linux top命令"""
+        logger.info("接收到top请求")
+        
+        # 获取系统信息
+        cpu_percent = psutil.cpu_percent(interval=1, percpu=True)
+        cpu_avg = sum(cpu_percent) / len(cpu_percent)
+        mem = psutil.virtual_memory()
+        swap = psutil.swap_memory()
+        disk = psutil.disk_usage('/')
+        boot_time = datetime.datetime.fromtimestamp(psutil.boot_time())
+        uptime = datetime.datetime.now() - boot_time
+        
+        # 获取进程信息（按CPU排序取前5）
+        processes = []
+        for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
+            try:
+                processes.append(proc.info)
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        
+        processes.sort(key=lambda x: x['cpu_percent'], reverse=True)
+        top_processes = processes[:5]
+        
+        # 格式化输出
+        uptime_str = str(uptime).split('.')[0]
+        
+        result = textwrap.dedent(f"""\
+        🔧 **系统监控 - top**
+        ━━━━━━━━━━━━━━━━━━━━━━
+        ⏱️ 运行时间: {uptime_str}
+        📅 启动时间: {boot_time.strftime('%Y-%m-%d %H:%M:%S')}
+
+        💻 **CPU 使用情况**
+          平均: {cpu_avg:.1f}%
+          核心: {' | '.join([f'{p:.1f}%' for p in cpu_percent])}
+
+        🧠 **内存使用**
+          总计: {mem.total / 1024**3:.1f} GB
+          已用: {mem.used / 1024**3:.1f} GB ({mem.percent}%)
+          空闲: {mem.available / 1024**3:.1f} GB
+          Swap: {swap.used / 1024**3:.1f} GB / {swap.total / 1024**3:.1f} GB ({swap.percent}%)
+
+        💾 **磁盘使用 (/)**
+          总计: {disk.total / 1024**3:.1f} GB
+          已用: {disk.used / 1024**3:.1f} GB ({disk.percent}%)
+          空闲: {disk.free / 1024**3:.1f} GB
+
+        📊 **Top 5 进程 (按CPU)**
+        """).strip()
+    
+        # 追加进程列表
+        for i, proc in enumerate(top_processes, 1):
+            result += f"\n  {i}. {proc['name']} (PID:{proc['pid']}) - CPU:{proc['cpu_percent']:.1f}% MEM:{proc['memory_percent']:.1f}%"
+        result += "\n\n━━━━━━━━━━━━━━━━━━━━━━" 
+        yield event.plain_result(result)
+    
     async def terminate(self):
         """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
