@@ -6,6 +6,7 @@ import psutil
 import time
 import os
 import datetime
+import asyncio
 
 @register("helloworld", "YourName", "一个简单的 Hello World 插件", "1.0.0")
 class MyPlugin(Star):
@@ -47,21 +48,41 @@ class MyPlugin(Star):
         
         # 获取进程信息（按CPU排序取前5）
         processes = []
-        for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
+    
+        # 第一次遍历 - 预热（必须先调用一次 cpu_percent）
+        for proc in psutil.process_iter(['pid', 'name']):
             try:
-                processes.append(proc.info)
+                proc.cpu_percent()  # 第一次调用，返回值忽略
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 pass
         
+        # 等待一小段时间让系统采样
+        await asyncio.sleep(0.5)
+        
+        # 第二次遍历 - 获取真实CPU使用率
+        for proc in psutil.process_iter(['pid', 'name', 'memory_percent']):
+            try:
+                cpu_p = proc.cpu_percent()
+                mem_p = proc.info['memory_percent']
+                processes.append({
+                    'pid': proc.info['pid'],
+                    'name': proc.info['name'],
+                    'cpu_percent': cpu_p,
+                    'memory_percent': mem_p
+                })
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        
+        # 按CPU使用率排序
         processes.sort(key=lambda x: x['cpu_percent'], reverse=True)
         top_processes = processes[:5]
-        
+            
         # 格式化输出
         uptime_str = str(uptime).split('.')[0]
         
         result = textwrap.dedent(f"""\
         🔧 **系统监控 - top**
-        ━━━━━━━━━━━━━━━━━━━━━━
+        ━━━━━━━━━━━━━━━━
         ⏱️ 运行时间: {uptime_str}
         📅 启动时间: {boot_time.strftime('%Y-%m-%d %H:%M:%S')}
 
@@ -86,7 +107,7 @@ class MyPlugin(Star):
         # 追加进程列表
         for i, proc in enumerate(top_processes, 1):
             result += f"\n  {i}. {proc['name']} (PID:{proc['pid']}) - CPU:{proc['cpu_percent']:.1f}% MEM:{proc['memory_percent']:.1f}%"
-        result += "\n\n━━━━━━━━━━━━━━━━━━━━━━" 
+        result += "\n\n━━━━━━━━━━━━━━━━" 
         yield event.plain_result(result)
     
     async def terminate(self):
