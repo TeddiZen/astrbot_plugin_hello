@@ -32,82 +32,93 @@ class MyPlugin(Star):
         logger.info("接收到help请求")
         yield event.image_result("https://teddizen-java-tesy.oss-cn-guangzhou.aliyuncs.com/help.png")
 
+    def _read_cgroup_file(self, path: str) -> int:
+        """读取Docker cgroup文件，获取容器真实资源"""
+        try:
+            with open(path, 'r') as f:
+                return int(f.read().strip())
+        except (FileNotFoundError, ValueError):
+            return 0
+
+    def get_docker_memory_info(self):
+        """获取Docker容器真实内存信息（通过cgroup）"""
+        # cgroup v1 路径
+        limit = self._read_cgroup_file('/sys/fs/cgroup/memory/memory.limit_in_bytes')
+        usage = self._read_cgroup_file('/sys/fs/cgroup/memory/memory.usage_in_bytes')
+        
+        # cgroup v2 兼容（新版Docker）
+        if not limit:
+            limit = self._read_cgroup_file('/sys/fs/cgroup/memory.max')
+        if not usage:
+            usage = self._read_cgroup_file('/sys/fs/cgroup/memory.current')
+        
+        #  fallback 到系统信息
+        if not limit:
+            mem = psutil.virtual_memory()
+            return mem.total, mem.used, mem.percent
+        
+        percent = (usage / limit) * 100 if limit > 0 else 0
+        return limit, usage, percent
+
     @filter.command("top")
     async def top(self, event: AstrMessageEvent):
-        """系统资源监控 - 类似Linux top命令"""
+        """🐳 Docker容器系统监控 - 类似Linux top命令"""
         logger.info("接收到top请求")
         
-        # 获取系统信息
-        cpu_percent = psutil.cpu_percent(interval=1, percpu=True)
-        cpu_avg = sum(cpu_percent) / len(cpu_percent)
-        mem = psutil.virtual_memory()
-        swap = psutil.swap_memory()
+        # ========== 获取基础系统信息 ==========
+        cpu_percent = psutil.cpu_percent(interval=0.5, percpu=True)
+        cpu_avg = sum(cpu_percent) / len(cpu_percent) if cpu_percent else 0
         disk = psutil.disk_usage('/')
         boot_time = datetime.datetime.fromtimestamp(psutil.boot_time())
         uptime = datetime.datetime.now() - boot_time
-        
-        # 获取进程信息（按CPU排序取前5）
-        processes = []
-    
-        # 第一次遍历 - 预热（必须先调用一次 cpu_percent）
-        for proc in psutil.process_iter(['pid', 'name']):
-            try:
-                proc.cpu_percent()  # 第一次调用，返回值忽略
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
-        
-        # 等待一小段时间让系统采样
-        await asyncio.sleep(0.5)
-        
-        # 第二次遍历 - 获取真实CPU使用率
-        for proc in psutil.process_iter(['pid', 'name', 'memory_percent']):
-            try:
-                cpu_p = proc.cpu_percent()
-                mem_p = proc.info['memory_percent']
-                processes.append({
-                    'pid': proc.info['pid'],
-                    'name': proc.info['name'],
-                    'cpu_percent': cpu_p,
-                    'memory_percent': mem_p
-                })
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
-        
-        # 按CPU使用率排序
-        processes.sort(key=lambda x: x['cpu_percent'], reverse=True)
-        top_processes = processes[:5]
-            
-        # 格式化输出
         uptime_str = str(uptime).split('.')[0]
         
+        # ========== Docker真实内存信息 ==========
+        mem_limit, mem_usage, mem_percent = self.get_docker_memory_info()
+        
+        # ========== Bot进程详情 ==========
+        bot_proc = psutil.Process()
+        bot_mem_rss = bot_proc.memory_info().rss  # 物理内存
+        bot_mem_vms = bot_proc.memory_info().vms  # 虚拟内存
+        bot_cpu = bot_proc.cpu_percent()
+        bot_threads = bot_proc.num_threads()
+        bot_fd = bot_proc.num_fds()  # 打开的文件描述符
+        
+        # ========== 格式化输出 ==========
         result = textwrap.dedent(f"""\
-        🔧 **系统监控 - top**
-        ━━━━━━━━━━━━━━━━
-        ⏱️ 运行时间: {uptime_str}
-        📅 启动时间: {boot_time.strftime('%Y-%m-%d %H:%M:%S')}
+            🐳 **Docker容器监控 - top**
+            ━━━━━━━━━━━━━━━━━━━━
+            ⏱️ 运行时间: {uptime_str}
+            📅 启动时间: {boot_time.strftime('%Y-%m-%d %H:%M:%S')}
 
-        💻 **CPU 使用情况**
-          平均: {cpu_avg:.1f}%
-          核心: {' | '.join([f'{p:.1f}%' for p in cpu_percent])}
+            💻 **CPU 使用情况**
+              平均负载: {cpu_avg:.1f}%
+              CPU核心: {len(cpu_percent)} 核
+              核心占用: {' | '.join([f'{p:.1f}%' for p in cpu_percent[:4]])}
 
-        🧠 **内存使用**
-          总计: {mem.total / 1024**3:.1f} GB
-          已用: {mem.used / 1024**3:.1f} GB ({mem.percent}%)
-          空闲: {mem.available / 1024**3:.1f} GB
-          Swap: {swap.used / 1024**3:.1f} GB / {swap.total / 1024**3:.1f} GB ({swap.percent}%)
+            🧠 **内存使用 (Docker限额)**
+              容器限额: {mem_limit / 1024**3:.1f} GB
+              已用内存: {mem_usage / 1024**3:.2f} GB
+              使用率: {mem_percent:.1f}%
+              剩余可用: {(mem_limit - mem_usage) / 1024**3:.2f} GB
 
-        💾 **磁盘使用 (/)**
-          总计: {disk.total / 1024**3:.1f} GB
-          已用: {disk.used / 1024**3:.1f} GB ({disk.percent}%)
-          空闲: {disk.free / 1024**3:.1f} GB
+            💾 **磁盘使用**
+              总计: {disk.total / 1024**3:.1f} GB
+              已用: {disk.used / 1024**3:.1f} GB ({disk.percent}%)
+              空闲: {disk.free / 1024**3:.1f} GB
 
-        📊 **Top 5 进程 (按CPU)**
-        """).strip()
-    
-        # 追加进程列表
-        for i, proc in enumerate(top_processes, 1):
-            result += f"\n  {i}. {proc['name']} (PID:{proc['pid']}) - CPU:{proc['cpu_percent']:.1f}% MEM:{proc['memory_percent']:.1f}%"
-        result += "\n\n━━━━━━━━━━━━━━━━" 
+            🤖 **Bot 进程详情 (PID: {bot_proc.pid})**
+              CPU占用: {bot_cpu:.1f}%
+              物理内存: {bot_mem_rss / 1024**2:.1f} MB
+              虚拟内存: {bot_mem_vms / 1024**2:.1f} MB
+              内存占比: {(bot_mem_rss / mem_limit) * 100:.1f}%
+              线程数量: {bot_threads}
+              文件句柄: {bot_fd}
+
+            ━━━━━━━━━━━━━━━━━━━━
+            ✨ AstrBot System Monitor
+            """).strip()
+        
         yield event.plain_result(result)
     
     async def terminate(self):
