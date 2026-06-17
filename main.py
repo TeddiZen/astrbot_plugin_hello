@@ -6,6 +6,7 @@ import psutil
 import time
 import os
 import datetime
+import random
 import asyncio
 
 @register("helloworld", "YourName", "一个简单的 Hello World 插件", "1.0.0")
@@ -32,6 +33,25 @@ class MyPlugin(Star):
         logger.info("接收到help请求")
         yield event.image_result("https://teddizen-java-tesy.oss-cn-guangzhou.aliyuncs.com/help.png")
 
+    @filter.command("选")
+    async def choose(self, event: AstrMessageEvent):
+        """随机选择命令，格式：/选选项一还是选项二"""
+        message_str = event.message_str.strip()
+        
+        # 解析 "还是" 分隔的两个选项（去掉命令名"选"后）
+        content = message_str[1:] if message_str.startswith("选") else message_str
+        if "还是" in content:
+            options = content.split("还是")
+            if len(options) >= 2:
+                choice1 = options[0].strip()
+                choice2 = options[1].strip()
+                if choice1 and choice2:
+                    result = random.choice([choice1, choice2])
+                    yield event.plain_result(f"塞西莉亚建议选择：{result} 哦！")
+                    return
+        
+        # 格式错误，提示用户正确用法
+        yield event.plain_result("❌ 格式错误！请使用：!选选项一还是选项二\n例如：!选苹果还是橘子")
 
     @filter.command("top")
     async def top(self, event: AstrMessageEvent):
