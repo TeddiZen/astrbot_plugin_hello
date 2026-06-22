@@ -9,7 +9,7 @@ import datetime
 import random
 import asyncio
 
-@register("helloworld", "YourName", "一个简单的 Hello World 插件", "1.0.0")
+@register("Cecilia", "Teddizen", "塞西莉亚bot附加插件", "2.0.0")
 class MyPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
