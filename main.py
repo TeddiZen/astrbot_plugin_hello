@@ -8,6 +8,7 @@ import os
 import datetime
 import random
 import asyncio
+import platform
 
 @register("helloworld", "YourName", "一个简单的 Hello World 插件", "1.0.0")
 class MyPlugin(Star):
@@ -118,42 +119,43 @@ class MyPlugin(Star):
         
         # ========== 专业版输出 ==========
         lines = [
-            "=" * 20,
-            " **✨ 塞西莉亚bot ✨**",
-            "  **系统资源监控面板**",
-            "=" * 20,
             "",
-            "📊 **【系统概览】**",
-            f"  • 系统运行时间: {uptime_str}",
-            f"  • 启动时间: {boot_time.strftime('%Y-%m-%d %H:%M:%S')}",
-            f"  • 进程总数: {len(processes)} 个",
-            "",
-            "💻 **【CPU 状态】**",
-            f"  • 当前使用率: {cpu_avg:.1f}%",
-            f"  • CPU核心数: {len(cpu_percent)} 核",
-            f"  • 1分钟负载: {load_avg[0]:.2f}",
-            f"  • 5分钟负载: {load_avg[1]:.2f}",
-            f"  • 15分钟负载: {load_avg[2]:.2f}",
-            "",
-            "🧠 **【内存状态】**",
-            f"  • 物理内存: {mem.used/1024**3:.1f}GB / {mem.total/1024**3:.1f}GB ({mem.percent:.1f}%)",
-            f"  • 可用内存: {mem.available/1024**3:.2f} GB",
-            f"  • 交换分区: {swap.used/1024**3:.1f}GB / {swap.total/1024**3:.1f}GB ({swap.percent:.1f}%)",
-            "",
-            "💾 **【磁盘状态】**",
-            f"  • 根分区: {disk.used/1024**3:.1f}GB / {disk.total/1024**3:.1f}GB ({disk.percent:.1f}%)",
-            "",
-            "📋 **【进程排行榜】(按内存占用 Top 8)**",
+            "   ✨ 塞西莉亚bot ✨",
+            "    系统资源监控面板",
             "-" * 25,
-            f"  {'PID':<6} {'进程名':<15} {'用户':<8} "
-            f"  {'内存(MB)':>8} {'占比':>6}",
+            "",
+            "📊 【系统概览】",
+            f"• 系统信息: {platform.platform()}",
+            f"• 系统运行时间: {uptime_str}",
+            f"• 启动时间: {boot_time.strftime('%Y-%m-%d %H:%M:%S')}",
+            "",
+            "💻 【CPU 状态】",
+            f"• 当前使用率: {cpu_avg:.1f}%",
+            f"• CPU核心数: {len(cpu_percent)}核",
+            f"• 1分钟负载: {load_avg[0]:.2f}",
+            f"• 5分钟负载: {load_avg[1]:.2f}",
+            f"• 15分钟负载: {load_avg[2]:.2f}",
+            "",
+            "💾 【内存状态】",
+            f"• 物理内存: {mem.used/1024**3:.1f}GB / {mem.total/1024**3:.1f}GB ({mem.percent:.1f}%)",
+            f"• 可用内存: {mem.available/1024**3:.2f} GB",
+            f"• 交换分区: {swap.used/1024**3:.1f}GB / {swap.total/1024**3:.1f}GB ({swap.percent:.1f}%)",
+            "",
+            "💽 【磁盘状态】",
+            f"• 根分区: {disk.used/1024**3:.1f}GB / {disk.total/1024**3:.1f}GB ({disk.percent:.1f}%)",
+            "",
+            "📋 【进程列表】",
+            f"• 进程总数: {len(processes)} 个",
+            "-" * 25,
+            f" {'PID':<6} {'进程名':<15} {'用户':<8} "
+            f" {'内存(MB)':>8} {'占比':>6}",
             "-" * 25,
         ]
         
         for p in top_processes:
             lines.append(
-                f"  {p['pid']:<6} {p['name'][:14]:<15} {p['user'][:6]:<8} "
-                f"  {p['memory_mb']:>8.1f} {p['memory_percent']:>5.1f}%"
+                f" {p['pid']:<6} {p['name'][:14]:<15} {p['user'][:6]:<8} "
+                f" {p['memory_mb']:>8.1f} {p['memory_percent']:>5.1f}%"
             )
         
         lines.extend([
