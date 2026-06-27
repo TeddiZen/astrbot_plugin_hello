@@ -119,9 +119,8 @@ class MyPlugin(Star):
         
         # ========== 专业版输出 ==========
         lines = [
-            "",
             "   ✨ 塞西莉亚bot ✨",
-            "    系统资源监控面板",
+            "   系统资源监控面板2.0",
             "-" * 25,
             "",
             "📊 【系统概览】",
@@ -130,8 +129,9 @@ class MyPlugin(Star):
             f"• 启动时间: {boot_time.strftime('%Y-%m-%d %H:%M:%S')}",
             "",
             "💻 【CPU 状态】",
-            f"• 当前使用率: {cpu_avg:.1f}%",
+            f"• CPU型号: {platform.processor()}",
             f"• CPU核心数: {len(cpu_percent)}核",
+            f"• 当前使用率: {cpu_avg:.1f}%",
             f"• 1分钟负载: {load_avg[0]:.2f}",
             f"• 5分钟负载: {load_avg[1]:.2f}",
             f"• 15分钟负载: {load_avg[2]:.2f}",
