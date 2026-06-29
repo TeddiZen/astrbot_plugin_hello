@@ -161,6 +161,7 @@ class MyPlugin(Star):
         lines.extend([
             "-" * 25,
             "📌 Made by 哲迪君"
+            "🚀 Version: 2.0.1"
         ])
         
         yield event.plain_result('\n'.join(lines))
