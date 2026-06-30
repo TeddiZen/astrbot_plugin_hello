@@ -167,7 +167,7 @@ class MyPlugin(Star):
         
         lines.extend([
             "-" * 25,
-            "📌 Made by 哲迪君"
+            "📌 Made by 哲迪君",
             "🚀 Version: 2.1.0"
         ])
         
