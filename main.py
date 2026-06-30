@@ -10,7 +10,7 @@ import random
 import asyncio
 import platform
 
-@register("Cecilia", "Teddizen", "塞西莉亚bot附加插件", "2.0.0")
+@register("astrbot_plugin_Cecilia", "Teddizen", "塞西莉亚bot自写插件", "2.1.0")
 class MyPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -41,9 +41,15 @@ class MyPlugin(Star):
         
         # 解析命令内容（去掉"随机数 "部分）
         content = message_str[3:].strip()  # "随机数" 是3个字符
+
+        # 如果没有指定数字范围，默认生成0到100之间的随机数
+        if content == "":
+            result = random.randint(0, 100)
+            yield event.plain_result(f"塞西莉亚听到了…从遥远的神明那里传来的声音，那个数字是…{result}！")
+            return
         
         # 查找"到"字来分隔两个数字
-        if "到" in content:
+        elif "到" in content:
             parts = content.split("到")
             if len(parts) >= 2:
                 try:
@@ -61,11 +67,12 @@ class MyPlugin(Star):
                     pass
         
         # 格式错误，提示用户正确用法
-        yield event.plain_result("❌ 格式错误！请使用：/随机数 数字到数字\n例如：/随机数 1到10")
+        else:
+            yield event.plain_result("❌ 格式错误！请使用：!随机数 数字到数字\n例如：!随机数 1到10")
 
     @filter.command("选")
     async def choose(self, event: AstrMessageEvent):
-        """随机选择命令，格式：/选选项一还是选项二"""
+        """随机选择命令，格式：!选选项一还是选项二"""
         message_str = event.message_str.strip()
         
         # 解析 "还是" 分隔的两个选项（去掉命令名"选"后）
@@ -161,10 +168,59 @@ class MyPlugin(Star):
         lines.extend([
             "-" * 25,
             "📌 Made by 哲迪君"
-            "🚀 Version: 2.0.1"
+            "🚀 Version: 2.1.0"
         ])
         
         yield event.plain_result('\n'.join(lines))
+    
+
+    @filter.command("port")
+    async def port_check(self, event: AstrMessageEvent, port: str = None):
+        """/port 端口号 查询占用端口的进程"""
+        logger.info(f"收到端口查询指令，端口：{port}")
+        if not port or not port.isdigit():
+            yield event.plain_result("❌ 用法错误，请输入：/port 数字端口\n示例：/port 6185")
+            return
+        
+        target_port = int(port)
+        if target_port < 1 or target_port > 65535:
+            yield event.plain_result("❌ 端口范围必须是 1~65535")
+            return
+
+        conn_list = []
+        # 遍历所有网络连接
+        for conn in psutil.net_connections(kind="inet"):
+            if conn.laddr.port == target_port:
+                pid = conn.pid
+                proc_name = "未知进程"
+                if pid:
+                    try:
+                        proc = psutil.Process(pid)
+                        proc_name = proc.name()
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        proc_name = "进程已结束/无权限读取"
+                conn_list.append({
+                    "pid": pid,
+                    "proc_name": proc_name,
+                    "ip": conn.laddr.ip,
+                    "status": conn.status
+                })
+        
+        if not conn_list:
+            msg = f"🔍 端口 {target_port} 暂无程序占用"
+        else:
+            lines = [
+                f"🔍 端口 {target_port} 占用详情",
+                "=" * 35,
+                f"{'PID':<8}{'进程名':<20}{'本地IP':<15}{'状态'}"
+            ]
+            for item in conn_list:
+                lines.append(
+                    f"{str(item['pid']):<8}{item['proc_name'][:18]:<20}{item['ip']:<15}{item['status']}"
+                )
+            msg = "\n".join(lines)
+        
+        yield event.plain_result(msg)
         
     async def terminate(self):
         """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
